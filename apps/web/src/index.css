@@ -612,6 +612,199 @@ h1 {
   line-height: 1.5;
 }
 
+/* ---------- New: pills, selects, groups, tags, habits ---------- */
+.time-pill {
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+}
+
+.notify-banner {
+  width: 100%;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px dashed var(--accent);
+  border-radius: 12px;
+  padding: 0.6rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.notify-banner:hover {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.select {
+  font-family: inherit;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--row);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.estimate-input {
+  width: 110px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--row);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+}
+
+.estimate-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* groups */
+.group {
+  margin-bottom: 1.25rem;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  padding: 0 0.25rem;
+}
+
+.group-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.group-meta {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--accent-soft);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+}
+
+/* tags inside a row */
+.tags {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--accent-soft);
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.tag.due.today {
+  color: var(--accent);
+}
+
+.tag.due.overdue {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.tag.recur {
+  color: var(--accent-2);
+}
+
+/* habits panel */
+.habits {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.habits-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.habits-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0.2rem 0 0.7rem;
+}
+
+.habits-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.habits-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.habit-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.habit-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.habit-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.habit-track {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border: none;
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.habit-track:hover {
+  transform: translateY(-1px);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
 /* ---------- Dark mode ---------- */
 @media (prefers-color-scheme: dark) {
   :root {
@@ -631,7 +824,9 @@ h1 {
     background: rgba(255, 255, 255, 0.1);
   }
 
-  .date-input {
+  .date-input,
+  .select,
+  .estimate-input {
     color-scheme: dark;
   }
 }

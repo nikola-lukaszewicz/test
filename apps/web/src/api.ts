@@ -1,19 +1,41 @@
 export type Priority = 'low' | 'medium' | 'high';
+export type Category = 'praca' | 'spotkanie' | 'wizyta' | 'inne' | 'dom';
+export type Recurrence = 'daily' | 'weekly';
 
 export interface Todo {
   id: string;
   title: string;
   completed: boolean;
   priority: Priority;
+  category: Category;
   dueDate: string | null;
+  estimatedMinutes: number | null;
+  recurrence: Recurrence | null;
   createdAt: string;
+  completedAt: string | null;
+}
+
+export interface Habit {
+  titleKey: string;
+  title: string;
+  category: Category;
+  count: number;
+  lastCompletedAt: string;
+  alreadyTracked: boolean;
 }
 
 export interface CreateTodoInput {
   title: string;
   priority?: Priority;
+  category?: Category;
   dueDate?: string | null;
+  estimatedMinutes?: number | null;
+  recurrence?: Recurrence | null;
 }
+
+export type UpdateTodoInput = Partial<
+  Pick<Todo, 'title' | 'completed' | 'priority' | 'category' | 'dueDate' | 'estimatedMinutes' | 'recurrence'>
+>;
 
 const BASE = '/api/todos';
 
@@ -30,6 +52,8 @@ async function handle<T>(res: Response): Promise<T> {
 export const todosApi = {
   list: () => fetch(BASE).then((r) => handle<Todo[]>(r)),
 
+  habits: () => fetch(`${BASE}/habits`).then((r) => handle<Habit[]>(r)),
+
   create: (input: CreateTodoInput) =>
     fetch(BASE, {
       method: 'POST',
@@ -37,7 +61,7 @@ export const todosApi = {
       body: JSON.stringify(input),
     }).then((r) => handle<Todo>(r)),
 
-  update: (id: string, patch: Partial<Pick<Todo, 'title' | 'completed' | 'priority' | 'dueDate'>>) =>
+  update: (id: string, patch: UpdateTodoInput) =>
     fetch(`${BASE}/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

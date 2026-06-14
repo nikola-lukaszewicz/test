@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Todo {
+  id               String    @id @default(uuid())
+  title            String
+  completed        Boolean   @default(false)
+  priority         String    @default("medium") // low | medium | high
+  category         String    @default("inne")   // praca | spotkanie | wizyta | dom | inne
+  dueDate          String? // YYYY-MM-DD
+  estimatedMinutes Int?
+  recurrence       String? // null | daily | weekly  (zadanie powtarzalne / nawyk)
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+  lastNotifiedAt   DateTime? // ostatnie wysłane powiadomienie (anty-spam)
+
+  @@index([completed])
+  @@index([dueDate])
+}
+
+// Historia ukończeń — podstawa do wykrywania nawyków
+model CompletionLog {
+  id          String   @id @default(uuid())
+  titleKey    String // znormalizowany tytuł (lowercase, trim)
+  title       String
+  category    String
+  completedAt DateTime @default(now())
+
+  @@index([titleKey])
+}

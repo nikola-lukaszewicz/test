@@ -1,5 +1,15 @@
-import { IsEnum, IsISO8601, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { Priority } from '../todo.entity';
+import {
+  IsEnum,
+  IsISO8601,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { Category, Priority, Recurrence } from '../todo.constants';
 
 export class CreateTodoDto {
   @IsString()
@@ -12,6 +22,20 @@ export class CreateTodoDto {
   priority?: Priority;
 
   @IsOptional()
+  @IsEnum(['praca', 'spotkanie', 'wizyta', 'inne', 'dom'])
+  category?: Category;
+
+  @IsOptional()
   @IsISO8601({ strict: true })
   dueDate?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  estimatedMinutes?: number;
+
+  @IsOptional()
+  @IsEnum(['daily', 'weekly'])
+  recurrence?: Recurrence;
 }

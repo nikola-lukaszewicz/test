@@ -21,6 +21,12 @@ export class TodosController {
     return this.todosService.findAll();
   }
 
+  // Wykryte nawyki — musi być przed ':id', by nie kolidowało z parametrem
+  @Get('habits')
+  habits() {
+    return this.todosService.detectHabits();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.todosService.findOne(id);
@@ -39,6 +45,6 @@ export class TodosController {
   @Delete(':id')
   @HttpCode(204)
   remove(@Param('id') id: string) {
-    this.todosService.remove(id);
+    return this.todosService.remove(id);
   }
 }

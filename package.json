@@ -17,6 +17,6 @@
     "node": ">=20"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "@nestjs/core"]
+    "onlyBuiltDependencies": ["esbuild", "@nestjs/core", "prisma", "@prisma/client", "@prisma/engines"]
   }
 }

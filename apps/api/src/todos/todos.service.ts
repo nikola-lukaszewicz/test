@@ -1,83 +1,185 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { Todo } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
-import { Priority, Todo } from './todo.entity';
+import {
+  Category,
+  CATEGORY_RANK,
+  Priority,
+  PRIORITY_RANK,
+  Recurrence,
+} from './todo.constants';
 
-const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
+export interface Habit {
+  titleKey: string;
+  title: string;
+  category: string;
+  count: number;
+  lastCompletedAt: string;
+  alreadyTracked: boolean; // czy istnieje już powtarzalne zadanie o tym tytule
+}
+
+const HABIT_THRESHOLD = 3; // tyle ukończeń, by uznać czynność za nawyk
 
 @Injectable()
 export class TodosService {
-  // Magazyn w pamięci — wystarczy do demonstracji.
-  // Łatwo podmienić na bazę danych (np. Prisma / TypeORM).
-  private todos: Todo[] = [
-    {
-      id: randomUUID(),
-      title: 'Przykładowe zadanie — kliknij, aby oznaczyć jako zrobione',
-      completed: false,
-      priority: 'medium',
-      dueDate: new Date().toISOString().slice(0, 10),
-      createdAt: new Date().toISOString(),
-    },
-  ];
+  constructor(private readonly prisma: PrismaService) {}
 
-  findAll(): Todo[] {
-    return [...this.todos].sort((a, b) => {
-      // Najpierw niezakończone, potem wg terminu, potem wg priorytetu
-      if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) {
-        return a.dueDate.localeCompare(b.dueDate);
-      }
-      if (a.dueDate && !b.dueDate) return -1;
-      if (!a.dueDate && b.dueDate) return 1;
-      if (a.priority !== b.priority) return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
-      return a.createdAt.localeCompare(b.createdAt);
-    });
+  async findAll(): Promise<Todo[]> {
+    const todos = await this.prisma.todo.findMany();
+    return todos.sort(this.compare);
   }
 
-  findOne(id: string): Todo {
-    const todo = this.todos.find((t) => t.id === id);
+  // Sortowanie hierarchiczne: niezakończone najpierw, potem wg kategorii
+  // (praca > spotkanie > wizyta > inne > dom), terminu i priorytetu.
+  private compare = (a: Todo, b: Todo): number => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+
+    const catA = CATEGORY_RANK[a.category as Category] ?? 99;
+    const catB = CATEGORY_RANK[b.category as Category] ?? 99;
+    if (catA !== catB) return catA - catB;
+
+    if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) {
+      return a.dueDate.localeCompare(b.dueDate);
+    }
+    if (a.dueDate && !b.dueDate) return -1;
+    if (!a.dueDate && b.dueDate) return 1;
+
+    const prioA = PRIORITY_RANK[a.priority as Priority] ?? 1;
+    const prioB = PRIORITY_RANK[b.priority as Priority] ?? 1;
+    if (prioA !== prioB) return prioA - prioB;
+
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  };
+
+  async findOne(id: string): Promise<Todo> {
+    const todo = await this.prisma.todo.findUnique({ where: { id } });
     if (!todo) {
       throw new NotFoundException(`Nie znaleziono zadania o id ${id}`);
     }
     return todo;
   }
 
-  create(dto: CreateTodoDto): Todo {
-    const todo: Todo = {
-      id: randomUUID(),
-      title: dto.title.trim(),
-      completed: false,
-      priority: dto.priority ?? 'medium',
-      dueDate: dto.dueDate ? dto.dueDate.slice(0, 10) : null,
-      createdAt: new Date().toISOString(),
-    };
-    this.todos.push(todo);
-    return todo;
+  async create(dto: CreateTodoDto): Promise<Todo> {
+    return this.prisma.todo.create({
+      data: {
+        title: dto.title.trim(),
+        priority: dto.priority ?? 'medium',
+        category: dto.category ?? 'inne',
+        dueDate: dto.dueDate ? dto.dueDate.slice(0, 10) : null,
+        estimatedMinutes: dto.estimatedMinutes ?? null,
+        recurrence: dto.recurrence ?? null,
+      },
+    });
   }
 
-  update(id: string, dto: UpdateTodoDto): Todo {
-    const todo = this.findOne(id);
-    if (dto.title !== undefined) {
-      todo.title = dto.title.trim();
-    }
+  async update(id: string, dto: UpdateTodoDto): Promise<Todo> {
+    const existing = await this.findOne(id);
+
+    const data: Record<string, unknown> = {};
+    if (dto.title !== undefined) data.title = dto.title.trim();
+    if (dto.priority !== undefined) data.priority = dto.priority;
+    if (dto.category !== undefined) data.category = dto.category;
+    if (dto.dueDate !== undefined) data.dueDate = dto.dueDate ? dto.dueDate.slice(0, 10) : null;
+    if (dto.estimatedMinutes !== undefined) data.estimatedMinutes = dto.estimatedMinutes;
+    if (dto.recurrence !== undefined) data.recurrence = dto.recurrence;
+
+    // Wykrycie momentu ukończenia
+    const justCompleted = dto.completed === true && !existing.completed;
+    const justReopened = dto.completed === false && existing.completed;
     if (dto.completed !== undefined) {
-      todo.completed = dto.completed;
+      data.completed = dto.completed;
+      data.completedAt = justCompleted ? new Date() : justReopened ? null : existing.completedAt;
     }
-    if (dto.priority !== undefined) {
-      todo.priority = dto.priority;
+
+    const updated = await this.prisma.todo.update({ where: { id }, data });
+
+    if (justCompleted) {
+      await this.onCompleted(updated);
     }
-    if (dto.dueDate !== undefined) {
-      todo.dueDate = dto.dueDate ? dto.dueDate.slice(0, 10) : null;
-    }
-    return todo;
+
+    return updated;
   }
 
-  remove(id: string): void {
-    const index = this.todos.findIndex((t) => t.id === id);
-    if (index === -1) {
-      throw new NotFoundException(`Nie znaleziono zadania o id ${id}`);
+  private async onCompleted(todo: Todo): Promise<void> {
+    // 1. Zapis do historii ukończeń (baza nawyków)
+    await this.prisma.completionLog.create({
+      data: {
+        titleKey: todo.title.trim().toLowerCase(),
+        title: todo.title.trim(),
+        category: todo.category,
+      },
+    });
+
+    // 2. Zadanie powtarzalne -> utwórz następne wystąpienie
+    if (todo.recurrence && todo.dueDate) {
+      const next = this.nextDueDate(todo.dueDate, todo.recurrence as Recurrence);
+      await this.prisma.todo.create({
+        data: {
+          title: todo.title,
+          priority: todo.priority,
+          category: todo.category,
+          dueDate: next,
+          estimatedMinutes: todo.estimatedMinutes,
+          recurrence: todo.recurrence,
+        },
+      });
     }
-    this.todos.splice(index, 1);
+  }
+
+  private nextDueDate(dueDate: string, recurrence: Recurrence): string {
+    const [y, m, d] = dueDate.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + (recurrence === 'daily' ? 1 : 7));
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  }
+
+  async remove(id: string): Promise<void> {
+    await this.findOne(id);
+    await this.prisma.todo.delete({ where: { id } });
+  }
+
+  // ----- Nawyki -----
+  // Czynność uznajemy za nawyk, gdy ukończono ją >= HABIT_THRESHOLD razy.
+  async detectHabits(): Promise<Habit[]> {
+    const logs = await this.prisma.completionLog.groupBy({
+      by: ['titleKey'],
+      _count: { titleKey: true },
+      _max: { completedAt: true },
+      having: { titleKey: { _count: { gte: HABIT_THRESHOLD } } },
+    });
+
+    if (logs.length === 0) return [];
+
+    // Pobierz reprezentatywny tytuł/kategorię oraz aktualne powtarzalne zadania
+    const [samples, recurring] = await Promise.all([
+      this.prisma.completionLog.findMany({
+        where: { titleKey: { in: logs.map((l) => l.titleKey) } },
+        distinct: ['titleKey'],
+        orderBy: { completedAt: 'desc' },
+      }),
+      this.prisma.todo.findMany({ where: { recurrence: { not: null } } }),
+    ]);
+
+    const trackedKeys = new Set(recurring.map((t) => t.title.trim().toLowerCase()));
+    const sampleByKey = new Map(samples.map((s) => [s.titleKey, s]));
+
+    return logs
+      .map((l) => {
+        const sample = sampleByKey.get(l.titleKey);
+        return {
+          titleKey: l.titleKey,
+          title: sample?.title ?? l.titleKey,
+          category: sample?.category ?? 'inne',
+          count: l._count.titleKey,
+          lastCompletedAt: (l._max.completedAt ?? new Date()).toISOString(),
+          alreadyTracked: trackedKeys.has(l.titleKey),
+        };
+      })
+      .sort((a, b) => b.count - a.count);
   }
 }
