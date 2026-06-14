@@ -1,8 +1,18 @@
+export type Priority = 'low' | 'medium' | 'high';
+
 export interface Todo {
   id: string;
   title: string;
   completed: boolean;
+  priority: Priority;
+  dueDate: string | null;
   createdAt: string;
+}
+
+export interface CreateTodoInput {
+  title: string;
+  priority?: Priority;
+  dueDate?: string | null;
 }
 
 const BASE = '/api/todos';
@@ -20,14 +30,14 @@ async function handle<T>(res: Response): Promise<T> {
 export const todosApi = {
   list: () => fetch(BASE).then((r) => handle<Todo[]>(r)),
 
-  create: (title: string) =>
+  create: (input: CreateTodoInput) =>
     fetch(BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify(input),
     }).then((r) => handle<Todo>(r)),
 
-  update: (id: string, patch: Partial<Pick<Todo, 'title' | 'completed'>>) =>
+  update: (id: string, patch: Partial<Pick<Todo, 'title' | 'completed' | 'priority' | 'dueDate'>>) =>
     fetch(`${BASE}/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
