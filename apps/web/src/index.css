@@ -1,0 +1,165 @@
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: #f4f5f7;
+  color: #1a1a1a;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1a1b1e;
+    color: #e8e8e8;
+  }
+}
+
+.app {
+  width: 100%;
+  max-width: 540px;
+}
+
+h1 {
+  text-align: center;
+  font-size: 2rem;
+  margin: 0 0 1.5rem;
+}
+
+.add-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.add-form input {
+  flex: 1;
+  padding: 0.7rem 0.9rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+}
+
+.add-form input:focus {
+  outline: 2px solid #4c6ef5;
+  border-color: transparent;
+}
+
+button {
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0.7rem 1.1rem;
+  border: none;
+  border-radius: 8px;
+  background: #4c6ef5;
+  color: #fff;
+  transition: background 0.15s ease;
+}
+
+button:hover {
+  background: #3b5bdb;
+}
+
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.filters button {
+  background: transparent;
+  color: inherit;
+  border: 1px solid #ccc;
+  padding: 0.4rem 0.9rem;
+}
+
+.filters button.active {
+  background: #4c6ef5;
+  color: #fff;
+  border-color: #4c6ef5;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  .list li {
+    background: #2a2b2f;
+  }
+}
+
+.list li label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  flex: 1;
+}
+
+.list li input[type='checkbox'] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.list li.done span {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.delete {
+  background: transparent;
+  color: #e03131;
+  padding: 0.3rem 0.55rem;
+  font-size: 1rem;
+}
+
+.delete:hover {
+  background: rgba(224, 49, 49, 0.12);
+}
+
+.muted {
+  text-align: center;
+  opacity: 0.6;
+  padding: 1.5rem 0;
+}
+
+.error {
+  color: #e03131;
+  text-align: center;
+}
+
+.footer {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
