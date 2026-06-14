@@ -3,6 +3,12 @@ import { Todo, todosApi } from './api';
 
 type Filter = 'all' | 'active' | 'completed';
 
+const FILTER_LABELS: Record<Filter, string> = {
+  all: 'Wszystkie',
+  active: 'Aktywne',
+  completed: 'Ukończone',
+};
+
 export function App() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [title, setTitle] = useState('');
@@ -55,68 +61,85 @@ export function App() {
     return todos;
   }, [todos, filter]);
 
-  const remaining = todos.filter((t) => !t.completed).length;
+  const total = todos.length;
+  const done = todos.filter((t) => t.completed).length;
+  const remaining = total - done;
+  const progress = total === 0 ? 0 : Math.round((done / total) * 100);
 
   return (
-    <main className="app">
-      <h1>📝 Todo List</h1>
+    <div className="page">
+      <main className="card">
+        <header className="header">
+          <div className="header-top">
+            <h1>Moje zadania</h1>
+            <span className="badge">{remaining} do zrobienia</span>
+          </div>
+          <div className="progress">
+            <div className="progress-bar" style={{ width: `${progress}%` }} />
+          </div>
+          <p className="progress-label">
+            {total === 0 ? 'Brak zadań' : `${done} z ${total} ukończonych`}
+          </p>
+        </header>
 
-      <form className="add-form" onSubmit={addTodo}>
-        <input
-          type="text"
-          placeholder="Co masz do zrobienia?"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={200}
-        />
-        <button type="submit">Dodaj</button>
-      </form>
-
-      {error && <p className="error">⚠️ {error}</p>}
-
-      <div className="filters">
-        {(['all', 'active', 'completed'] as Filter[]).map((f) => (
-          <button
-            key={f}
-            className={filter === f ? 'active' : ''}
-            onClick={() => setFilter(f)}
-          >
-            {f === 'all' ? 'Wszystkie' : f === 'active' ? 'Aktywne' : 'Ukończone'}
+        <form className="add-form" onSubmit={addTodo}>
+          <input
+            type="text"
+            placeholder="Dodaj nowe zadanie…"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={200}
+          />
+          <button type="submit" disabled={!title.trim()}>
+            <span>＋</span>
           </button>
-        ))}
-      </div>
+        </form>
 
-      {loading ? (
-        <p className="muted">Ładowanie…</p>
-      ) : visible.length === 0 ? (
-        <p className="muted">Brak zadań do wyświetlenia.</p>
-      ) : (
-        <ul className="list">
-          {visible.map((todo) => (
-            <li key={todo.id} className={todo.completed ? 'done' : ''}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={todo.completed}
-                  onChange={() => toggle(todo)}
-                />
-                <span>{todo.title}</span>
-              </label>
-              <button
-                className="delete"
-                onClick={() => remove(todo.id)}
-                aria-label="Usuń"
-              >
-                ✕
-              </button>
-            </li>
+        {error && <p className="error">⚠️ {error}</p>}
+
+        <div className="filters">
+          {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => (
+            <button
+              key={f}
+              className={filter === f ? 'active' : ''}
+              onClick={() => setFilter(f)}
+            >
+              {FILTER_LABELS[f]}
+            </button>
           ))}
-        </ul>
-      )}
+        </div>
 
-      <footer className="footer">
-        {remaining} {remaining === 1 ? 'zadanie' : 'zadań'} pozostało
-      </footer>
-    </main>
+        {loading ? (
+          <p className="muted">Ładowanie…</p>
+        ) : visible.length === 0 ? (
+          <div className="empty">
+            <div className="empty-icon">✓</div>
+            <p>{filter === 'completed' ? 'Nic jeszcze nie ukończono' : 'Wszystko zrobione!'}</p>
+          </div>
+        ) : (
+          <ul className="list">
+            {visible.map((todo) => (
+              <li key={todo.id} className={todo.completed ? 'done' : ''}>
+                <button
+                  className="check"
+                  onClick={() => toggle(todo)}
+                  aria-label={todo.completed ? 'Oznacz jako niezrobione' : 'Oznacz jako zrobione'}
+                >
+                  {todo.completed && <span>✓</span>}
+                </button>
+                <span className="todo-title">{todo.title}</span>
+                <button
+                  className="delete"
+                  onClick={() => remove(todo.id)}
+                  aria-label="Usuń"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </main>
+    </div>
   );
 }
