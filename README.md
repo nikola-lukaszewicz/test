@@ -63,6 +63,26 @@ cd apps/api
 pnpm db:studio   # przeglądarka danych Prisma Studio
 ```
 
+## Testy (E2E)
+
+Testy end-to-end pokrywają wszystkie przepływy API (Jest + supertest, izolowana
+testowa baza SQLite `prisma/test.db`):
+
+```bash
+pnpm test                 # uruchom z roota (przez Turbo)
+# lub:
+cd apps/api && pnpm test:e2e
+```
+
+Zakres (37 testów):
+- **CRUD** — tworzenie, odczyt, aktualizacja, usuwanie, kody 201/200/204/404
+- **Walidacja** — pusty tytuł, złe enum-y (priorytet/kategoria/powtarzalność), zła data, czas < 1, nieznane pola
+- **Hierarchia sortowania** — kategoria → termin → priorytet, ukończone na końcu
+- **Powtarzalność** — ukończenie tworzy kolejne wystąpienie (+1 dzień / +7 dni)
+- **Nawyki** — próg 3 ukończeń, normalizacja tytułu, flaga `alreadyTracked`
+- **Statystyki** — totals, podział wg kategorii, ostatnie 7 dni
+- **Streaki** — bieżący i najdłuższy, przerwanie, „żywy" gdy zrobiono wczoraj
+
 ## Inne komendy
 
 ```bash

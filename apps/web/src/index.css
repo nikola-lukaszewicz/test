@@ -130,18 +130,37 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.85fr);
   gap: 1.5rem;
-  align-items: start;
+  align-items: stretch; /* obie kolumny równej wysokości */
+}
+
+/* karty wypełniają swoją kolumnę, aby dolny brzeg był wspólny */
+.tasks-card {
+  height: 100%;
 }
 
 .side {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  height: 100%;
+}
+
+/* ostatnia karta w bocznej kolumnie rozciąga się do dołu */
+.side > .card:last-child {
+  flex: 1 1 auto;
 }
 
 @media (max-width: 960px) {
   .grid {
     grid-template-columns: 1fr;
+    align-items: start;
+  }
+  .tasks-card,
+  .side {
+    height: auto;
+  }
+  .side > .card:last-child {
+    flex: 0 0 auto;
   }
 }
 
