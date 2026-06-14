@@ -27,6 +27,11 @@ export class TodosController {
     return this.todosService.detectHabits();
   }
 
+  @Get('stats')
+  stats() {
+    return this.todosService.getStats();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.todosService.findOne(id);

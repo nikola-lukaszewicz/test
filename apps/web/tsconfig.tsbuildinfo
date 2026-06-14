@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/calendar.tsx","./src/habitspanel.tsx","./src/api.ts","./src/dateutils.ts","./src/main.tsx","./src/meta.ts","./src/usebrowsernotifications.ts","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/calendar.tsx","./src/habitspanel.tsx","./src/stats.tsx","./src/api.ts","./src/dateutils.ts","./src/main.tsx","./src/meta.ts","./src/usebrowsernotifications.ts","./src/vite-env.d.ts"],"version":"5.9.3"}

@@ -24,6 +24,26 @@ export interface Habit {
   alreadyTracked: boolean;
 }
 
+export interface Stats {
+  totals: {
+    total: number;
+    completed: number;
+    active: number;
+    overdue: number;
+    completionRate: number;
+  };
+  byCategory: { category: Category; total: number; completed: number }[];
+  last7Days: { date: string; count: number }[];
+  streaks: {
+    titleKey: string;
+    title: string;
+    category: Category;
+    current: number;
+    longest: number;
+    lastCompletedAt: string;
+  }[];
+}
+
 export interface CreateTodoInput {
   title: string;
   priority?: Priority;
@@ -53,6 +73,8 @@ export const todosApi = {
   list: () => fetch(BASE).then((r) => handle<Todo[]>(r)),
 
   habits: () => fetch(`${BASE}/habits`).then((r) => handle<Habit[]>(r)),
+
+  stats: () => fetch(`${BASE}/stats`).then((r) => handle<Stats>(r)),
 
   create: (input: CreateTodoInput) =>
     fetch(BASE, {

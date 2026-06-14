@@ -5,11 +5,32 @@ import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import {
   Category,
+  CATEGORIES,
   CATEGORY_RANK,
   Priority,
   PRIORITY_RANK,
   Recurrence,
 } from './todo.constants';
+
+export interface Stats {
+  totals: {
+    total: number;
+    completed: number;
+    active: number;
+    overdue: number;
+    completionRate: number;
+  };
+  byCategory: { category: string; total: number; completed: number }[];
+  last7Days: { date: string; count: number }[];
+  streaks: {
+    titleKey: string;
+    title: string;
+    category: string;
+    current: number;
+    longest: number;
+    lastCompletedAt: string;
+  }[];
+}
 
 export interface Habit {
   titleKey: string;
@@ -181,5 +202,139 @@ export class TodosService {
         };
       })
       .sort((a, b) => b.count - a.count);
+  }
+
+  // ----- Statystyki + streaki -----
+  async getStats(): Promise<Stats> {
+    const today = this.localISO(new Date());
+    const [todos, logs] = await Promise.all([
+      this.prisma.todo.findMany(),
+      this.prisma.completionLog.findMany({ orderBy: { completedAt: 'asc' } }),
+    ]);
+
+    const total = todos.length;
+    const completed = todos.filter((t) => t.completed).length;
+    const active = total - completed;
+    const overdue = todos.filter((t) => !t.completed && t.dueDate && t.dueDate < today).length;
+    const completionRate = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+    const byCategory = CATEGORIES.map((cat) => {
+      const items = todos.filter((t) => t.category === cat);
+      return { category: cat, total: items.length, completed: items.filter((t) => t.completed).length };
+    }).filter((c) => c.total > 0);
+
+    // Ukończenia w ostatnich 7 dniach
+    const byDay = new Map<string, number>();
+    for (const l of logs) {
+      const d = this.localISO(l.completedAt);
+      byDay.set(d, (byDay.get(d) ?? 0) + 1);
+    }
+    const last7Days: { date: string; count: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const iso = this.localISO(d);
+      last7Days.push({ date: iso, count: byDay.get(iso) ?? 0 });
+    }
+
+    const streaks = this.computeStreaks(logs);
+
+    return {
+      totals: { total, completed, active, overdue, completionRate },
+      byCategory,
+      last7Days,
+      streaks,
+    };
+  }
+
+  private localISO(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+      date.getDate(),
+    ).padStart(2, '0')}`;
+  }
+
+  private computeStreaks(
+    logs: { titleKey: string; title: string; category: string; completedAt: Date }[],
+  ): Stats['streaks'] {
+    // Grupowanie ukończeń po tytule, zbiór unikalnych dni
+    const byKey = new Map<
+      string,
+      { title: string; category: string; days: Set<string>; last: Date }
+    >();
+    for (const l of logs) {
+      const day = this.localISO(l.completedAt);
+      const entry = byKey.get(l.titleKey);
+      if (entry) {
+        entry.days.add(day);
+        if (l.completedAt > entry.last) entry.last = l.completedAt;
+      } else {
+        byKey.set(l.titleKey, {
+          title: l.title,
+          category: l.category,
+          days: new Set([day]),
+          last: l.completedAt,
+        });
+      }
+    }
+
+    const today = this.localISO(new Date());
+    const yesterday = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return this.localISO(d);
+    })();
+
+    const result: Stats['streaks'] = [];
+    for (const [titleKey, e] of byKey) {
+      if (e.days.size < 2) continue; // streak ma sens przy >= 2 dniach
+
+      // Bieżący streak: liczymy wstecz od dziś (lub wczoraj, jeśli dziś jeszcze nie zrobiono)
+      let current = 0;
+      const cursor = new Date();
+      if (!e.days.has(today)) {
+        if (e.days.has(yesterday)) {
+          cursor.setDate(cursor.getDate() - 1);
+        } else {
+          cursor.setDate(cursor.getDate() - 9999); // brak bieżącego streaka
+        }
+      }
+      while (e.days.has(this.localISO(cursor))) {
+        current++;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+
+      // Najdłuższy streak
+      const sorted = [...e.days].sort();
+      let longest = 0;
+      let run = 0;
+      let prev: string | null = null;
+      for (const day of sorted) {
+        if (prev && this.dayDiff(day, prev) === 1) run++;
+        else run = 1;
+        if (run > longest) longest = run;
+        prev = day;
+      }
+
+      result.push({
+        titleKey,
+        title: e.title,
+        category: e.category,
+        current,
+        longest,
+        lastCompletedAt: e.last.toISOString(),
+      });
+    }
+
+    return result
+      .sort((a, b) => b.current - a.current || b.longest - a.longest)
+      .slice(0, 8);
+  }
+
+  private dayDiff(a: string, b: string): number {
+    const [ay, am, ad] = a.split('-').map(Number);
+    const [by, bm, bd] = b.split('-').map(Number);
+    const da = new Date(ay, am - 1, ad).getTime();
+    const db = new Date(by, bm - 1, bd).getTime();
+    return Math.round((da - db) / 86400000);
   }
 }

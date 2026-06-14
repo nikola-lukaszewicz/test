@@ -1,7 +1,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar } from './Calendar';
 import { HabitsPanel } from './HabitsPanel';
-import { Category, Habit, Priority, Recurrence, Todo, todosApi } from './api';
+import { StatsPanel, StreaksPanel } from './Stats';
+import { Category, Habit, Priority, Recurrence, Stats, Todo, todosApi } from './api';
 import { formatDueLabel, isOverdue, isToday, todayISO } from './dateUtils';
 import { CATEGORY_META, CATEGORY_ORDER, formatDuration, PRIORITY_META, RECURRENCE_META } from './meta';
 import { useBrowserNotifications } from './useBrowserNotifications';
@@ -17,6 +18,7 @@ const FILTER_LABELS: Record<Filter, string> = {
 export function App() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [category, setCategory] = useState<Category>('praca');
@@ -30,8 +32,9 @@ export function App() {
 
   const { permission, requestPermission, supported } = useBrowserNotifications(todos);
 
-  const refreshHabits = useCallback(() => {
+  const refreshDerived = useCallback(() => {
     todosApi.habits().then(setHabits).catch(() => {});
+    todosApi.stats().then(setStats).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -40,8 +43,8 @@ export function App() {
       .then(setTodos)
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-    refreshHabits();
-  }, [refreshHabits]);
+    refreshDerived();
+  }, [refreshDerived]);
 
   const addTodo = async (e: FormEvent) => {
     e.preventDefault();
@@ -61,6 +64,7 @@ export function App() {
       setDueDate('');
       setEstimate('');
       setRecurrence('');
+      refreshDerived();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -69,14 +73,13 @@ export function App() {
   const toggle = async (todo: Todo) => {
     try {
       const updated = await todosApi.update(todo.id, { completed: !todo.completed });
-      // Po ukończeniu serwer mógł utworzyć kolejne wystąpienie / nowy nawyk
       if (updated.completed) {
         const fresh = await todosApi.list();
         setTodos(fresh);
-        refreshHabits();
       } else {
         setTodos((prev) => prev.map((t) => (t.id === todo.id ? updated : t)));
       }
+      refreshDerived();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -86,6 +89,7 @@ export function App() {
     try {
       await todosApi.remove(id);
       setTodos((prev) => prev.filter((t) => t.id !== id));
+      refreshDerived();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -102,7 +106,7 @@ export function App() {
       });
       const fresh = await todosApi.list();
       setTodos(fresh);
-      refreshHabits();
+      refreshDerived();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -117,7 +121,6 @@ export function App() {
     });
   }, [todos, filter, selectedDate]);
 
-  // Grupowanie wg kategorii w kolejności ważności
   const groups = useMemo(() => {
     return CATEGORY_ORDER.map((cat) => ({
       category: cat,
@@ -136,162 +139,183 @@ export function App() {
 
   return (
     <div className="page">
-      <div className="layout">
-        <main className="card">
-          <header className="header">
-            <div className="header-top">
-              <h1>Moje zadania</h1>
-              <span className="badge">{remaining} do zrobienia</span>
+      <div className="dashboard">
+        <header className="topbar">
+          <div className="topbar-title">
+            <h1>Moje zadania</h1>
+            <p className="subtitle">Organizer z priorytetami, terminami i nawykami</p>
+          </div>
+          <div className="topbar-stats">
+            <div className="mini-stat">
+              <strong>{remaining}</strong>
+              <span>do zrobienia</span>
             </div>
-            <div className="progress">
-              <div className="progress-bar" style={{ width: `${progress}%` }} />
+            <div className="mini-stat">
+              <strong>{progress}%</strong>
+              <span>ukończone</span>
             </div>
-            <p className="progress-label">
-              {total === 0 ? 'Brak zadań' : `${done} z ${total} ukończonych`}
-              {remainingMinutes > 0 && (
-                <span className="time-pill">⏱ {formatDuration(remainingMinutes)}</span>
-              )}
-              {overdueCount > 0 && <span className="overdue-pill">⏰ {overdueCount} zaległe</span>}
-            </p>
-          </header>
+            {remainingMinutes > 0 && (
+              <div className="mini-stat">
+                <strong>{formatDuration(remainingMinutes)}</strong>
+                <span>pozostały czas</span>
+              </div>
+            )}
+            {overdueCount > 0 && (
+              <div className="mini-stat danger">
+                <strong>{overdueCount}</strong>
+                <span>zaległe</span>
+              </div>
+            )}
+          </div>
+        </header>
 
-          {supported && permission !== 'granted' && (
-            <button className="notify-banner" onClick={requestPermission}>
-              🔔 Włącz powiadomienia w przeglądarce
-            </button>
-          )}
-
-          <form className="add-form" onSubmit={addTodo}>
-            <div className="add-row">
-              <input
-                type="text"
-                placeholder="Dodaj nowe zadanie…"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={200}
-              />
-              <button type="submit" disabled={!title.trim()}>
-                <span>＋</span>
-              </button>
-            </div>
-
-            <div className="add-options">
-              <select
-                className="select"
-                value={category}
-                onChange={(e) => setCategory(e.target.value as Category)}
-              >
-                {CATEGORY_ORDER.map((c) => (
-                  <option key={c} value={c}>
-                    {CATEGORY_META[c].icon} {CATEGORY_META[c].label}
-                  </option>
-                ))}
-              </select>
-
-              <div className="priority-pills">
-                {PRIORITY_META.map((p) => (
-                  <button
-                    type="button"
-                    key={p.value}
-                    className={`prio-pill prio-${p.value} ${priority === p.value ? 'active' : ''}`}
-                    onClick={() => setPriority(p.value)}
-                  >
-                    {p.label}
-                  </button>
-                ))}
+        <div className="grid">
+          <main className="card tasks-card">
+            <div className="progress-wrap">
+              <div className="progress">
+                <div className="progress-bar" style={{ width: `${progress}%` }} />
               </div>
             </div>
 
-            <div className="add-options">
-              <input
-                type="date"
-                className="date-input"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-              <input
-                type="number"
-                className="estimate-input"
-                placeholder="czas (min)"
-                min={1}
-                value={estimate}
-                onChange={(e) => setEstimate(e.target.value)}
-              />
-              <select
-                className="select"
-                value={recurrence}
-                onChange={(e) => setRecurrence(e.target.value as Recurrence | '')}
-              >
-                <option value="">Jednorazowe</option>
-                <option value="daily">{RECURRENCE_META.daily}</option>
-                <option value="weekly">{RECURRENCE_META.weekly}</option>
-              </select>
-            </div>
-          </form>
-
-          {error && <p className="error">⚠️ {error}</p>}
-
-          <HabitsPanel habits={habits} onTrack={trackHabit} />
-
-          <div className="filters">
-            {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => (
-              <button
-                key={f}
-                className={filter === f ? 'active' : ''}
-                onClick={() => setFilter(f)}
-              >
-                {FILTER_LABELS[f]}
+            {supported && permission !== 'granted' && (
+              <button className="notify-banner" onClick={requestPermission}>
+                🔔 Włącz powiadomienia w przeglądarce
               </button>
-            ))}
-          </div>
+            )}
 
-          {selectedDate && (
-            <p className="day-filter-note">
-              Pokazuję zadania na <strong>{formatDueLabel(selectedDate)}</strong>
-            </p>
-          )}
+            <form className="add-form" onSubmit={addTodo}>
+              <div className="add-row">
+                <input
+                  type="text"
+                  placeholder="Dodaj nowe zadanie…"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  maxLength={200}
+                />
+                <button type="submit" disabled={!title.trim()}>
+                  <span>＋</span>
+                </button>
+              </div>
 
-          {loading ? (
-            <p className="muted">Ładowanie…</p>
-          ) : groups.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon">✓</div>
-              <p>{filter === 'completed' ? 'Nic jeszcze nie ukończono' : 'Brak zadań tutaj'}</p>
+              <div className="add-options">
+                <select
+                  className="select"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as Category)}
+                >
+                  {CATEGORY_ORDER.map((c) => (
+                    <option key={c} value={c}>
+                      {CATEGORY_META[c].icon} {CATEGORY_META[c].label}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="priority-pills">
+                  {PRIORITY_META.map((p) => (
+                    <button
+                      type="button"
+                      key={p.value}
+                      className={`prio-pill prio-${p.value} ${priority === p.value ? 'active' : ''}`}
+                      onClick={() => setPriority(p.value)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="date"
+                  className="date-input"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+                <input
+                  type="number"
+                  className="estimate-input"
+                  placeholder="czas (min)"
+                  min={1}
+                  value={estimate}
+                  onChange={(e) => setEstimate(e.target.value)}
+                />
+                <select
+                  className="select"
+                  value={recurrence}
+                  onChange={(e) => setRecurrence(e.target.value as Recurrence | '')}
+                >
+                  <option value="">Jednorazowe</option>
+                  <option value="daily">{RECURRENCE_META.daily}</option>
+                  <option value="weekly">{RECURRENCE_META.weekly}</option>
+                </select>
+              </div>
+            </form>
+
+            {error && <p className="error">⚠️ {error}</p>}
+
+            <HabitsPanel habits={habits} onTrack={trackHabit} />
+
+            <div className="filters">
+              {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => (
+                <button
+                  key={f}
+                  className={filter === f ? 'active' : ''}
+                  onClick={() => setFilter(f)}
+                >
+                  {FILTER_LABELS[f]}
+                </button>
+              ))}
             </div>
-          ) : (
-            groups.map((group) => {
-              const groupMinutes = group.items
-                .filter((t) => !t.completed && t.estimatedMinutes)
-                .reduce((s, t) => s + (t.estimatedMinutes ?? 0), 0);
-              return (
-                <section key={group.category} className="group">
-                  <div className="group-header">
-                    <span className="group-title">
-                      {CATEGORY_META[group.category].icon} {CATEGORY_META[group.category].label}
-                    </span>
-                    <span className="group-meta">
-                      {group.items.length}
-                      {groupMinutes > 0 && ` · ${formatDuration(groupMinutes)}`}
-                    </span>
-                  </div>
-                  <ul className="list">
-                    {group.items.map((todo) => (
-                      <TodoRow key={todo.id} todo={todo} onToggle={toggle} onRemove={remove} />
-                    ))}
-                  </ul>
-                </section>
-              );
-            })
-          )}
-        </main>
 
-        <aside className="side">
-          <div className="card calendar-card">
-            <h2 className="cal-heading">Kalendarz</h2>
-            <Calendar todos={todos} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-            <p className="cal-hint">Kliknij dzień, aby zobaczyć zadania. Kropki = liczba zadań.</p>
-          </div>
-        </aside>
+            {selectedDate && (
+              <p className="day-filter-note">
+                Pokazuję zadania na <strong>{formatDueLabel(selectedDate)}</strong>
+              </p>
+            )}
+
+            {loading ? (
+              <p className="muted">Ładowanie…</p>
+            ) : groups.length === 0 ? (
+              <div className="empty">
+                <div className="empty-icon">✓</div>
+                <p>{filter === 'completed' ? 'Nic jeszcze nie ukończono' : 'Brak zadań tutaj'}</p>
+              </div>
+            ) : (
+              groups.map((group) => {
+                const groupMinutes = group.items
+                  .filter((t) => !t.completed && t.estimatedMinutes)
+                  .reduce((s, t) => s + (t.estimatedMinutes ?? 0), 0);
+                return (
+                  <section key={group.category} className="group">
+                    <div className="group-header">
+                      <span className="group-title">
+                        {CATEGORY_META[group.category].icon} {CATEGORY_META[group.category].label}
+                      </span>
+                      <span className="group-meta">
+                        {group.items.length}
+                        {groupMinutes > 0 && ` · ${formatDuration(groupMinutes)}`}
+                      </span>
+                    </div>
+                    <ul className="list">
+                      {group.items.map((todo) => (
+                        <TodoRow key={todo.id} todo={todo} onToggle={toggle} onRemove={remove} />
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })
+            )}
+          </main>
+
+          <aside className="side">
+            <div className="card calendar-card">
+              <h2 className="card-heading">📅 Kalendarz</h2>
+              <Calendar todos={todos} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+              <p className="cal-hint">Kliknij dzień, aby zobaczyć zadania. Kropki = liczba zadań.</p>
+            </div>
+
+            {stats && <StatsPanel stats={stats} />}
+            {stats && <StreaksPanel stats={stats} />}
+          </aside>
+        </div>
       </div>
     </div>
   );
@@ -308,6 +332,7 @@ function TodoRow({
 }) {
   const overdue = isOverdue(todo.dueDate, todo.completed);
   const today = isToday(todo.dueDate);
+  const hasTags = todo.dueDate || todo.estimatedMinutes || todo.recurrence;
 
   return (
     <li className={todo.completed ? 'done' : ''}>
@@ -318,21 +343,29 @@ function TodoRow({
       >
         {todo.completed && <span>✓</span>}
       </button>
-      <span className={`prio-dot prio-${todo.priority}`} title={`Priorytet: ${todo.priority}`} />
-      <div className="todo-body">
-        <span className="todo-title">{todo.title}</span>
-        <span className="tags">
-          {todo.dueDate && (
-            <span className={`tag due ${overdue ? 'overdue' : ''} ${today ? 'today' : ''}`}>
-              📅 {formatDueLabel(todo.dueDate)}
-            </span>
-          )}
-          {todo.estimatedMinutes && <span className="tag">⏱ {formatDuration(todo.estimatedMinutes)}</span>}
-          {todo.recurrence && (
-            <span className="tag recur">🔁 {RECURRENCE_META[todo.recurrence]}</span>
-          )}
-        </span>
+
+      <div className="row-main">
+        <div className="row-line">
+          <span className={`prio-dot prio-${todo.priority}`} title={`Priorytet: ${todo.priority}`} />
+          <span className="todo-title">{todo.title}</span>
+        </div>
+        {hasTags && (
+          <div className="row-tags">
+            {todo.dueDate && (
+              <span className={`tag due ${overdue ? 'overdue' : ''} ${today ? 'today' : ''}`}>
+                📅 {formatDueLabel(todo.dueDate)}
+              </span>
+            )}
+            {todo.estimatedMinutes && (
+              <span className="tag">⏱ {formatDuration(todo.estimatedMinutes)}</span>
+            )}
+            {todo.recurrence && (
+              <span className="tag recur">🔁 {RECURRENCE_META[todo.recurrence]}</span>
+            )}
+          </div>
+        )}
       </div>
+
       <button className="delete" onClick={() => onRemove(todo.id)} aria-label="Usuń">
         ✕
       </button>
